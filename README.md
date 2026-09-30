@@ -121,3 +121,7 @@ The deployment scripts operate on the configured Compose project. Backups in `sc
 ## License
 
 [MIT](LICENSE).
+
+## Funding and implementation
+
+The AI-BASS system was developed as part of the project **AI-BASS - AI-Based SUpport of Startup companies**, co-funded by the European Union. The project was implemented by Tampere University and the University Consortium of Seinäjoki.
