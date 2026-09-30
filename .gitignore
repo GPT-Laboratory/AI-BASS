@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local configuration and sensitive/runtime artifacts
+.env.*
+!.env.example
+node_modules/
+*.pem
+*.key
+*.p12
+*.pfx
+*.archive
+backups/
+lightrag_storage/
+scripts/testing/out/
+scripts/testing/config.local.json
+mongodb/pwfile
+.deploy.lock

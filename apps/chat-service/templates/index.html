@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark" lang="en">
+  <head>
+    <title>AI-BASS Chat</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr"
+      crossorigin="anonymous"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
+      crossorigin="anonymous"
+    ></script>
+  </head>
+  <style>
+    .applogo {
+      height: 80px;
+      border-radius: 50%;
+    }
+
+    .funderlogo {
+      height: 40px;
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      z-index: 1000;
+    }
+
+    /* Chat bubbles */
+    .chat-log {
+      overflow-y: auto;
+      padding: 0.75rem;
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.375rem;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Container for proper flexbox layout */
+    .chat-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 120px); /* Full height minus navbar and some padding */
+      gap: 0.75rem;
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+    }
+
+    /* User select row with clear button */
+    .user-select-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .user-select-row select {
+      flex: 1;
+    }
+
+    .user-select-row button {
+      flex-shrink: 0;
+    }
+
+    /* When user select is hidden (single user mode), reduce top spacing */
+    #user-select-container[style*="display: none"] ~ .chat-log,
+    #user-select-label[style*="display: none"] ~ .chat-log {
+      margin-top: 0;
+    }
+
+    /* User info row with logout button */
+    .user-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.5rem;
+      margin-bottom: 0;
+    }
+
+    .user-info-row p {
+      margin: 0;
+    }
+
+    /* Subtle button styling for clear chat and logout */
+    #clear-chat-btn,
+    .user-info-row .btn {
+      font-size: 0.85rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 0.5rem;
+      transition: all 0.2s ease;
+      opacity: 0.85;
+    }
+
+    #clear-chat-btn:hover,
+    .user-info-row .btn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Predefined prompt chips styling */
+    #prompt-buttons button {
+      background: var(--bs-secondary-bg);
+      border: 1px solid var(--bs-secondary-border-subtle);
+      color: var(--bs-body-color);
+      padding: 0.5rem 1rem;
+      border-radius: 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    }
+
+    #prompt-buttons button:hover {
+      background: var(--bs-primary-bg-subtle);
+      border-color: var(--bs-primary-border-subtle);
+      transform: translateY(-2px);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+    }
+
+    #prompt-buttons button:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    }
+
+    .chat-log .msg-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .chat-log .msg-row.user {
+      justify-content: flex-start;
+    }
+
+    /* you on left */
+    .chat-log .msg-row.bot {
+      justify-content: flex-end;
+    }
+
+    /* bot on right */
+    .chat-log .msg {
+      max-width: 80%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 1rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-log .msg.user {
+      background: var(--bs-primary-bg-subtle);
+      border: 1px solid var(--bs-primary-border-subtle);
+    }
+
+    .chat-log .msg.bot {
+      background: #2b3035;
+      border: 1px solid #495057;
+    }
+
+    .chat-log .msg.placeholder-msg {
+      font-style: italic;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      animation: placeholderPulse 5s ease-in-out infinite;
+      background: #2b3035 !important;
+      border: 1px solid #495057 !important;
+    }
+
+    @keyframes placeholderPulse {
+      0%,
+      100% {
+        opacity: 0.75;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .loader {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-bottom-color: #0088ff;
+      border-radius: 50%;
+      display: inline-block;
+      box-sizing: border-box;
+      animation: rotation 1s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes rotation {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Sources styling */
+    .sources-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--bs-border-color-translucent);
+      flex-wrap: wrap;
+    }
+
+    .sources-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--bs-secondary-color);
+      opacity: 0.8;
+    }
+
+    .sources-icons {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .source-icon {
+      font-size: 1.2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.7;
+      transition: opacity 0.2s, transform 0.2s;
+      line-height: 1;
+    }
+
+    .source-icon:hover {
+      opacity: 1;
+      transform: scale(1.15);
+    }
+
+    /* PNG icon styling for Google Drive and OneDrive */
+    .source-icon-img {
+      width: 1.2rem;
+      height: 1.2rem;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Inline citation icons within text */
+    .inline-source-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1rem;
+      height: 1rem;
+      margin: 0 0.15rem;
+      vertical-align: middle;
+      opacity: 0.8;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .inline-source-icon:hover {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+
+    /* Image-based inline icons */
+    img.inline-source-icon {
+      width: 1rem;
+      height: 1rem;
+      object-fit: contain;
+    }
+
+    /* Source content modal styling */
+    #source-content-modal .modal-body pre {
+      background-color: var(--bs-secondary-bg);
+      padding: 1rem;
+      border-radius: 0.375rem;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+  </style>
+
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+      <a class="navbar-logo" href="/"><img src="./static/ai-bass-logo.png" class="applogo" /></a>
+      <a class="navbar-brand" href="/"> &nbsp; &nbsp;AI-BASS chat</a>
+    </nav>
+    <img src="./static/EN_Co-fundedbytheEU_RGB_WHITE.png" class="funderlogo" />
+
+    <!-- Login Form -->
+    <div id="login-container" class="container mt-5" style="max-width: 400px">
+      <div class="card">
+        <div class="card-body">
+          <h3 class="card-title text-center">AI-BASS Chat Admin</h3>
+          <form id="login-form">
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input type="text" class="form-control" id="username" required />
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" required />
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Login</button>
+          </form>
+          <div id="login-error" class="alert alert-danger mt-3" style="display: none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-container" style="display: none">
+      <div class="container-fluid chat-wrapper">
+        <!-- User select row with clear button inline -->
+        <div>
+          <label id="user-select-label" for="user-select"><strong>Select user:</strong></label>
+          <div class="user-select-row" id="user-select-container">
+            <select class="form-select" id="user-select">
+              <option value="">-- Select --</option>
+            </select>
+            <!-- Admin clear button (hidden by default, inline with dropdown) -->
+            <button id="clear-chat-btn" class="btn btn-outline-danger btn-sm" style="display: none" onclick="clearChat()">Clear Chat</button>
+          </div>
+          <!-- User info with logout button inline -->
+          <div class="user-info-row">
+            <p id="user-info"><em>No user selected.</em></p>
+            <button class="btn btn-outline-secondary btn-sm" onclick="logout()">Logout</button>
+          </div>
+        </div>
+
+        <!-- Chat log -->
+        <div id="chatlog" class="chat-log"></div>
+
+        <!-- Chat input and predefined prompts -->
+        <div>
+          <form id="chat-form" class="mb-2">
+            <div class="input-group">
+              <input class="form-control" id="message" type="text" placeholder="Type a message…" aria-label="Message" autocomplete="off" required />
+              <button class="btn btn-primary" id="send-btn" type="submit">Send</button>
+            </div>
+          </form>
+          <div id="prompt-buttons" class="d-flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+    </div>
+    <script src="/static/client.js"></script>
+  </body>
+</html>

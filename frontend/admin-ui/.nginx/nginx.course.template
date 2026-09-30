@@ -1,0 +1,154 @@
+worker_processes 4;
+
+events { worker_connections 1024; }
+
+http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+        access_log  /var/log/nginx/access.log  main;
+        sendfile        on;
+        keepalive_timeout  65;
+
+        # Allow larger file uploads
+        client_max_body_size 50M;
+        client_body_timeout 120s;
+        client_body_buffer_size 128k;
+
+    # Redirect HTTP to HTTPS for your domain
+    server {
+        listen 80;
+        server_name admin.example.com;
+        return 301 https://$host$request_uri;
+    }
+
+    # HTTPS server for your domain
+    server {
+        listen 443 ssl;
+        server_name admin.example.com;
+
+        ssl_certificate /etc/letsencrypt/live/admin.example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/admin.example.com/privkey.pem;
+
+        root   /usr/share/nginx/html/;   # path to your app
+        index  index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+
+            # CORS headers
+            add_header 'Access-Control-Allow-Origin' '*';
+            add_header 'Access-Control-Allow-Methods' 'GET, PUT, POST, DELETE, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization';
+
+            if ($request_method = 'OPTIONS') {
+                # Tell client that this pre-flight request is valid for 20 days
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+
+        location /api/ {
+            proxy_pass ${BASE_URL};
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # Allow larger uploads through proxy
+            proxy_request_buffering off;
+            proxy_read_timeout 300s;
+            proxy_connect_timeout 75s;
+
+            rewrite ^/api/(.*)$ /$1 break;
+        }
+
+        # Proxy Google OAuth callback to backend
+        location /auth/google/callback {
+            proxy_pass ${BASE_URL};
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Proxy Microsoft OAuth callback to backend
+        location /auth/microsoft/callback {
+            proxy_pass ${BASE_URL};
+            proxy_set_header Host $proxy_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    # HTTPS server for Chat
+    server {
+        listen 443 ssl;
+        server_name chat.example.com;
+
+        ssl_certificate /etc/letsencrypt/live/chat.example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/chat.example.com/privkey.pem;
+
+        # Dynamic resolution for chat service
+        resolver 127.0.0.11 valid=10s;
+        resolver_timeout 5s;
+
+        location / {
+            set $chat_upstream http://chat-service:8000;
+            proxy_pass $chat_upstream;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # WebSocket support
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+
+            # Add retry logic for dynamic resolution
+            proxy_connect_timeout 5s;
+            proxy_read_timeout 60s;
+            proxy_next_upstream error timeout;
+        }
+    }
+
+    # Fallback for localhost (optional, for local dev)
+    server {
+        listen 80;
+        server_name localhost;
+        location / {
+            root   /usr/share/nginx/html/;
+            try_files $uri $uri/ /index.html;
+
+            # CORS headers
+            add_header 'Access-Control-Allow-Origin' '*';
+            add_header 'Access-Control-Allow-Methods' 'GET, PUT, POST, DELETE, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization';
+
+            if ($request_method = 'OPTIONS') {
+                # Tell client that this pre-flight request is valid for 20 days
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+        }
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+    }
+}

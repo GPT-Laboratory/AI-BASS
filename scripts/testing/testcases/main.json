@@ -1,0 +1,182 @@
+{
+  "suite_name": "RAG chatbot weekly meeting tests",
+  "version": "1.0.0",
+  "created_at": "2025-09-24T12:44:05.503903Z",
+  "language": "en",
+  "cases": [
+    {
+      "id": "TC-001",
+      "title": "Tasks conflicting with strategy",
+      "prompt": "Find all weekly meeting notes and identify tasks that conflict with company strategy.",
+      "expected_findings": [
+        {
+          "date": "2025-09-01",
+          "meeting": "weekly meeting",
+          "type": "task",
+          "text": "Administration is exploring disposable metal products for domestic retail.",
+          "labels": [
+            "strategy_conflict"
+          ]
+        }
+      ],
+      "acceptance_criteria": [
+        "At least one conflicting task is identified and labeled strategy_conflict.",
+        "The response cites a source or meeting date."
+      ],
+      "unexpected_examples": [
+        "Claims the September 1 meeting does not exist.",
+        "Lists a task without explaining the strategy conflict.",
+        "Invents dates or tasks absent from the notes."
+      ]
+    },
+    {
+      "id": "TC-002",
+      "title": "Technical risks",
+      "prompt": "Identify technical risks mentioned in weekly meetings.",
+      "expected_findings": [
+        {
+          "date": "2025-09-08",
+          "meeting": "weekly meeting",
+          "type": "risk",
+          "text": "An old CNC machine has become unreliable, threatening delivery delays."
+        }
+      ],
+      "acceptance_criteria": [
+        "The risk is described concisely and linked to the correct date.",
+        "Any related action supported by the notes is identified."
+      ],
+      "unexpected_examples": [
+        "Treats delivery delays as a sales risk instead of a technical risk.",
+        "Confuses September 8 with September 18 or August 8.",
+        "Invents a maintenance action absent from the notes."
+      ]
+    },
+    {
+      "id": "TC-003",
+      "title": "Statements without follow-up",
+      "prompt": "Find statements in weekly meetings that were not revisited in later meetings.",
+      "expected_findings": [
+        {
+          "date": "2025-08-18",
+          "meeting": "weekly meeting",
+          "type": "statement",
+          "text": "The CEO proposed rebranding and increased trade fair visibility.",
+          "follow_up_found": false
+        },
+        {
+          "date": "2025-09-01",
+          "meeting": "weekly meeting",
+          "type": "statement",
+          "text": "The welding robot investment study is progressing.",
+          "follow_up_found": false
+        }
+      ],
+      "acceptance_criteria": [
+        "Each statement has a boolean follow_up_found value.",
+        "The response states that no follow-up was found in later notes."
+      ],
+      "unexpected_examples": [
+        "Claims follow-up exists without supporting references.",
+        "Combines separate statements into a single finding."
+      ]
+    },
+    {
+      "id": "TC-004",
+      "title": "International customer tasks",
+      "prompt": "List all tasks related to international customers.",
+      "expected_findings": [
+        {
+          "date": "2025-08-25",
+          "type": "task",
+          "text": "Administration/sales prepares a quote for the Swedish customer."
+        },
+        {
+          "date": "2025-09-01",
+          "type": "task",
+          "text": "Design ensures production resources for the international order."
+        },
+        {
+          "date": "2025-09-01",
+          "type": "task",
+          "text": "Supervisors appoint a coordinator for the new order."
+        },
+        {
+          "date": "2025-09-15",
+          "type": "task",
+          "text": "Administration drafts a contract for the international customer."
+        }
+      ],
+      "acceptance_criteria": [
+        "All four tasks are identified with correct dates.",
+        "Tasks clearly relate to international customers, such as Sweden."
+      ],
+      "unexpected_examples": [
+        "Lists only some tasks, such as the August 25 task.",
+        "Adds tasks absent from the notes."
+      ]
+    },
+    {
+      "id": "TC-005",
+      "title": "ERP observations and actions",
+      "prompt": "Summarize ERP observations and actions from the weekly meetings.",
+      "expected_findings": [
+        {
+          "date": "2025-08-04",
+          "type": "status",
+          "text": "ERP upgrade in progress."
+        },
+        {
+          "date": "2025-08-11",
+          "type": "disruption",
+          "text": "ERP upgrade caused outages; additional training agreed."
+        },
+        {
+          "date": "2025-08-18",
+          "type": "training",
+          "text": "ERP training completed."
+        },
+        {
+          "date": "2025-09-01",
+          "type": "rollout",
+          "text": "ERP reporting introduced."
+        },
+        {
+          "date": "2025-09-08",
+          "type": "feedback",
+          "text": "User feedback remains critical; further feedback must be collected."
+        }
+      ],
+      "acceptance_criteria": [
+        "All five observations are included with correct dates.",
+        "The summary follows chronological order."
+      ],
+      "unexpected_examples": [
+        "Puts observations in the wrong chronological order.",
+        "Omits critical feedback from September 8."
+      ]
+    },
+    {
+      "id": "TC-006",
+      "title": "Strategy summary and follow-up question",
+      "prompt_sequence": [
+        "List the five most important points of our strategy.",
+        "Tell me more about point 4."
+      ],
+      "expected_findings": [
+        {
+          "type": "strategy_point",
+          "index": 4,
+          "text": "A detailed explanation of the fourth point from the preceding response."
+        }
+      ],
+      "acceptance_criteria": [
+        "The first response lists five points grounded in the strategy; the second expands point four.",
+        "The follow-up response explicitly refers to point four."
+      ],
+      "unexpected_examples": [
+        "Explains the wrong point, such as point three.",
+        "Cannot identify point four or gives a generic explanation without context."
+      ]
+    }
+  ]
+}

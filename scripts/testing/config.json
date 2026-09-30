@@ -1,0 +1,22 @@
+{
+  "admin_api_base": "http://localhost:5000",
+  "admin_username": "admin",
+  "company_name_prefix": "TestCo",
+  "rag_root": "./RAG",
+  "testcases_root": "./testcases",
+  "ws_url": "ws://localhost:8000/ws",
+  "WS_TIMEOUT_SECONDS": 900,
+  "CHAT_TIMEOUT_SECONDS": 300,
+  "CHAT_MAX_TOKENS": 10000,
+  "GPT_CHAT_MODEL": "gpt-4o-mini",
+  "RAG_TIMEOUT_SECONDS": 300,
+  "RAG_POLL_INTERVAL_SECONDS": 5,
+  "azure_version": "2024-12-01-preview",
+  "grading": {
+    "passing_threshold": 75,
+    "expected_findings_weight": 40,
+    "acceptance_criteria_weight": 50,
+    "unexpected_penalty_weight": 10,
+    "partial_credit_enabled": true
+  }
+}

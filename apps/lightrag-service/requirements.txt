@@ -1,0 +1,20 @@
+# LightRAG Core
+lightrag-hku
+
+# FastAPI and web framework
+fastapi
+uvicorn[standard]
+pydantic
+
+# Database and storage
+pymongo
+psycopg[binary]
+numpy
+requests
+
+# Azure OpenAI
+openai
+
+# Utilities
+python-dotenv
+asyncio

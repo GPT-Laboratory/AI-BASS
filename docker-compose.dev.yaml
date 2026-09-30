@@ -1,0 +1,287 @@
+services:
+  db-init:
+    profiles: [seed]
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongot:
+        condition: service_started
+      lightrag-service:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/companydb
+      - LIGHTRAG_SERVICE_URL=http://lightrag-service:9001
+      - AZURE_API_KEY=${AZURE_API_KEY:?Set AZURE_API_KEY in .env}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:?Set AZURE_ENDPOINT in .env}
+      - AZURE_VERSION=${AZURE_VERSION:-2024-12-01-preview}
+      - ADMIN_API_BASE=http://backend:5000
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+    command: ["python", "testdata.py"]
+    restart: "no"
+
+  backend:
+    build: ./apps/admin-backend
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/companydb
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      - ADMIN_PUBLIC_URL=${ADMIN_PUBLIC_URL:-http://localhost:8080}
+      - CHAT_PUBLIC_URL=${CHAT_PUBLIC_URL:-http://localhost:8000}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
+      - AZURE_API_KEY=${AZURE_API_KEY:?Set AZURE_API_KEY in .env}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:?Set AZURE_ENDPOINT in .env}
+      - AZURE_VERSION=${AZURE_VERSION:-2024-12-01-preview}
+      - LIGHTRAG_SERVICE_URL=http://lightrag-service:9001
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:5000/auth/google/callback}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
+      - MICROSOFT_TENANT_ID=${MICROSOFT_TENANT_ID:-common}
+      - MICROSOFT_REDIRECT_URI=${MICROSOFT_REDIRECT_URI:-http://localhost:5000/auth/microsoft/callback}
+      - EMAIL_ENCRYPTION_KEY=${EMAIL_ENCRYPTION_KEY:?Set EMAIL_ENCRYPTION_KEY in .env}
+      - WHATSAPP_SERVICE_URL=http://whatsapp-service:8888
+    depends_on:
+      mongo:
+        condition: service_healthy
+      lightrag-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 50s
+
+  mongo:
+    environment:
+      MONGOT_PASSWORD: ${MONGOT_PASSWORD:?Set MONGOT_PASSWORD in .env}
+    image: mongodb/mongodb-community-server:8.2-ubi8
+    container_name: company-mongo
+    entrypoint: ["/bin/sh", "/mongod-community/mongod-replica-entrypoint.sh"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./mongodb/mongod.conf:/etc/mongod.conf:ro
+      - ./mongodb/mongod-replica-entrypoint.sh:/mongod-community/mongod-replica-entrypoint.sh:ro
+      - ./mongodb/init-replica-set.js:/init-replica-set.js:ro
+      - ./mongodb/setup-mongot-user.js:/setup-mongot-user.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.runCommand({ ping: 1 }).ok\" | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  mongot:
+    environment:
+      MONGOT_PASSWORD: ${MONGOT_PASSWORD:?Set MONGOT_PASSWORD in .env}
+    image: mongodb/mongodb-community-search:0.54.0
+    container_name: company-mongo-search
+    ports:
+      - "127.0.0.1:27028:27028"
+      - "127.0.0.1:9946:9946"
+    entrypoint: ["/bin/sh", "/mongot-community/mongot-entrypoint.sh"]
+    volumes:
+      - mongot_data:/data/mongot
+      - ./mongodb/mongot.conf:/mongot-community/config.default.yml
+      - ./mongodb/mongot-entrypoint.sh:/mongot-community/mongot-entrypoint.sh:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  lightrag-postgres:
+    image: ankane/pgvector:latest
+    container_name: lightrag-postgres
+    environment:
+      POSTGRES_USER: lightrag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: lightrag_pg1536
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - lightrag-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lightrag -d lightrag_pg1536"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  chat-service:
+    build:
+      context: ./apps/chat-service
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - TEST_CLIENT_USER=${TEST_CLIENT_USER:-}
+      - LIGHTRAG_SERVICE_URL=http://lightrag-service:9001
+      - LIGHTRAG_MODE=hybrid
+      - LIGHTRAG_TOP_K=20
+      - LIGHTRAG_MAX_TOKENS=10000
+      - RAG_OPTIMIZE_QUERY=false
+      - MONGODB_URI=mongodb://mongo:27017
+      - ADMIN_PUBLIC_URL=${ADMIN_PUBLIC_URL:-http://localhost:8080}
+      - CHAT_PUBLIC_URL=${CHAT_PUBLIC_URL:-http://localhost:8000}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
+      - LOG_SERVICE_URL=http://log-service:8000/log
+      - CHAT_TIMEOUT_SECONDS=60
+      - CHAT_HISTORY_MESSAGE_COUNT=6
+      - COURSE_API_SECRET=${COURSE_API_SECRET:-}
+      - AZURE_API_KEY=${AZURE_API_KEY:?Set AZURE_API_KEY in .env}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:?Set AZURE_ENDPOINT in .env}
+      - AZURE_VERSION=${AZURE_VERSION:-2024-12-01-preview}
+      - ADMIN_API_BASE=http://backend:5000
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+    depends_on:
+      - mongo
+      - lightrag-service
+
+    volumes:
+      - ./apps/chat-service:/app
+    restart: unless-stopped
+
+  whatsapp-service:
+    profiles: [whatsapp]
+    build:
+      context: ./apps/chat-service
+      dockerfile: Dockerfile.whatsapp
+    ports:
+      - "127.0.0.1:8888:8888"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017
+      - ADMIN_BACKEND_URL=http://backend:5000
+      - LIGHTRAG_SERVICE_URL=http://lightrag-service:9001
+      - LIGHTRAG_MODE=hybrid
+      - LIGHTRAG_TOP_K=60
+      - LIGHTRAG_MAX_TOKENS=30000
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_BUSINESS_ID=${WHATSAPP_BUSINESS_ID:-}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-}
+      - ADMIN_PUBLIC_URL=${ADMIN_PUBLIC_URL:-http://localhost:8080}
+      - CHAT_PUBLIC_URL=${CHAT_PUBLIC_URL:-http://localhost:8000}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env}
+      - ADMIN_API_BASE=http://backend:5000
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      - CHAT_USERNAME=${ADMIN_USERNAME:-admin}
+      - CHAT_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      - AZURE_API_KEY=${AZURE_API_KEY:?Set AZURE_API_KEY in .env}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:?Set AZURE_ENDPOINT in .env}
+      - AZURE_VERSION=${AZURE_VERSION:-2024-12-01-preview}
+      - COURSE_URL=${COURSE_URL:-}
+      - COURSE_API_SECRET=${COURSE_API_SECRET:-}
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - lightrag-service
+
+  log-service:
+    build:
+      context: ./apps/log-service
+    container_name: log-service
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DATABASE=LightRAG
+      - AZURE_API_KEY=${AZURE_API_KEY:?Set AZURE_API_KEY in .env}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:?Set AZURE_ENDPOINT in .env}
+      - AZURE_VERSION=${AZURE_VERSION:-2024-12-01-preview}
+    depends_on:
+      - mongo
+    ports:
+      - "127.0.0.1:8010:8000"
+
+  lightrag-service:
+    build:
+      context: ./apps/lightrag-service
+    container_name: lightrag-service
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+      - AZURE_API_KEY=${AZURE_API_KEY:?Set AZURE_API_KEY in .env}
+      - AZURE_ENDPOINT=${AZURE_ENDPOINT:?Set AZURE_ENDPOINT in .env}
+      - AZURE_VERSION=${AZURE_VERSION:-2024-12-01-preview}
+      - AZURE_LLM_MODEL=${AZURE_LLM_MODEL:-gpt-4o}
+      - AZURE_EMBED_MODEL=${AZURE_EMBED_MODEL:-text-embedding-3-small}
+      - LIGHTRAG_BACKEND=postgres
+      - LIGHTRAG_PG_POOL_MIN=1
+      - LIGHTRAG_PG_POOL_MAX=10
+      - POSTGRES_HOST=lightrag-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=lightrag
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DATABASE=lightrag_pg1536
+      - EMBEDDING_DIM=1536
+      - LIGHTRAG_WORKING_DIR=/app/lightrag_storage
+      - LIGHTRAG_LOG_LEVEL=INFO
+      - MAX_ASYNC_LLM=4
+      - MAX_ASYNC_EMBEDDING=16
+      - MAX_PARALLEL_INSERT=4
+      - EMBEDDING_BATCH_SIZE=32
+      - CHUNK_TOKEN_SIZE=800
+      - CHUNK_OVERLAP_SIZE=100
+    ports:
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - lightrag_data:/app/lightrag_storage
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      lightrag-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:9001/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  admin-frontend:
+    build:
+      context: ./frontend/admin-ui
+      args:
+        VITE_API_BASE_URL: /api/
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    command: >
+      /bin/sh -c "envsubst '$$BASE_URL' < /etc/nginx/nginx.dev.template > /etc/nginx/nginx.conf
+      && exec nginx -g 'daemon off;'"
+    environment:
+      BASE_URL: "http://backend:5000"
+
+volumes:
+  mongo-data:
+  mongot_data:
+  lightrag_data:
+  lightrag-pg-data:

@@ -1,0 +1,16 @@
+**/.git
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.venv
+**/*.log
+**/*.pem
+**/*.key
+**/pwfile
+**/backups
+**/out
+**/lightrag_storage
+**/dist
